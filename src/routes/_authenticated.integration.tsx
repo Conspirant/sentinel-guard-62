@@ -198,7 +198,7 @@ void loop() {
   delay(2000);  // Post every 2 seconds
 }`;
 
-const REST_EXAMPLE = `# Direct Supabase REST Ingest from ESP32 / Gateway / cURL
+const REST_EXAMPLE = `# Direct Supabase REST Ingest from ESP32 / Gateway / Linux / Mac cURL
 curl -X POST "${SUPABASE_URL}/rest/v1/sensor_readings" \\
   -H "apikey: ${SUPABASE_ANON_KEY}" \\
   -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
@@ -213,6 +213,16 @@ curl -X POST "${SUPABASE_URL}/rest/v1/sensor_readings" \\
     "value": 850,
     "min": 0, "max": 4095, "warn": 1200, "critical": 2200
   }'`;
+
+const POWERSHELL_EXAMPLE = `# Windows PowerShell Test Command
+$h = @{
+  "apikey" = "${SUPABASE_ANON_KEY}"
+  "Authorization" = "Bearer ${SUPABASE_ANON_KEY}"
+  "Content-Type" = "application/json"
+  "Prefer" = "return=minimal"
+}
+$b = '{"device_id":"ESP32-PHY-01","lab_code":"PHY-01","sensor_key":"mq2","label":"MQ-2 Gas/Smoke","unit":"raw","value":850,"min":0,"max":4095,"warn":1200,"critical":2200}'
+Invoke-RestMethod -Uri "${SUPABASE_URL}/rest/v1/sensor_readings" -Method Post -Headers $h -Body $b`;
 
 const WS_EXAMPLE = `// Supabase Realtime WebSocket feed
 import { createClient } from "@supabase/supabase-js";
@@ -365,9 +375,10 @@ function IntegrationPage() {
 
         {/* Code samples */}
         <CodeBlock title="1. ESP32 Supabase C++ Firmware · Arduino" icon={Cpu} code={ESP32_SUPABASE_CODE} lang="cpp" />
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <CodeBlock title="2. Direct Supabase REST Ingest" icon={Terminal} code={REST_EXAMPLE} lang="bash" />
-          <CodeBlock title="3. Supabase Realtime Consumer" icon={Wifi} code={WS_EXAMPLE} lang="ts" />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <CodeBlock title="2. Direct Supabase REST Ingest (cURL)" icon={Terminal} code={REST_EXAMPLE} lang="bash" />
+          <CodeBlock title="3. Windows PowerShell Ingest" icon={Terminal} code={POWERSHELL_EXAMPLE} lang="powershell" />
+          <CodeBlock title="4. Supabase Realtime Consumer" icon={Wifi} code={WS_EXAMPLE} lang="ts" />
         </div>
 
         {/* Security & Envelope */}
