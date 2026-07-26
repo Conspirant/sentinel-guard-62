@@ -48,7 +48,7 @@ function LabMonitoring() {
     [userLabs, hideLabs],
   );
   const lab = allLabs.find((l) => l.id === labId);
-  const { readings, status } = useLiveSensors(lab?.code);
+  const { readings, status, isEsp32Connected, secondsAgo, activeDeviceId } = useLiveSensors(lab?.code);
   const hazards = useHazardEvents(20);
 
   const labDevices = useMemo(() => {
@@ -109,7 +109,7 @@ function LabMonitoring() {
             </span>
             <span>·</span>
             <span className="inline-flex items-center gap-1.5">
-              <StatusDot tone={statusTone} /> WS · {status}
+              <StatusDot tone={isEsp32Connected ? "success" : "critical"} /> ESP32 · {isEsp32Connected ? "ONLINE" : "OFFLINE"}
             </span>
             <span>·</span>
             <span>Frame #{pulse}</span>
@@ -131,21 +131,76 @@ function LabMonitoring() {
       />
 
       <div className="p-6 space-y-6">
-        {/* Active Laboratory View Notification Banner */}
-        <div className="rounded-sm border border-primary/40 bg-primary/10 p-4 text-xs font-medium text-foreground">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-primary font-semibold">
-              <Building2 className="h-4 w-4 shrink-0" />
-              <span className="text-sm">CURRENTLY VIEWING LAB: {lab.name} ({lab.code})</span>
+        {/* Prominent ESP32 Connection Status Card */}
+        {isEsp32Connected ? (
+          <div className="rounded-sm border border-emerald-500/50 bg-emerald-500/10 p-4 text-xs font-medium text-foreground shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-sm bg-emerald-500 text-white shrink-0 shadow-sm">
+                  <Wifi className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wide">
+                      ESP32 FIELD DEVICE ONLINE & CONNECTED
+                    </h3>
+                    <span className="font-mono text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                      LIVE UPLINK ACTIVE
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono">
+                    <span>Node ID: <strong className="text-foreground">{activeDeviceId}</strong></span>
+                    <span>·</span>
+                    <span>Target Lab: <strong className="text-foreground">{lab.name} ({lab.code})</strong></span>
+                    <span>·</span>
+                    <span>Last Telemetry: <strong className="text-emerald-600 dark:text-emerald-400">{secondsAgo}s ago</strong></span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right text-mono text-[11px] text-muted-foreground">
+                <div className="text-emerald-700 dark:text-emerald-400 font-semibold">SUPABASE REALTIME ACTIVE</div>
+                <div>Pure Hardware Telemetry</div>
+              </div>
             </div>
-            <Badge variant="outline" className="border-primary/40 text-primary bg-background text-[10px] font-mono uppercase">
-              Live Stream Active · Pure Sensor Telemetry
-            </Badge>
           </div>
-          <div className="mt-1.5 text-muted-foreground text-[11px]">
-            You are currently viewing dedicated live telemetry, sensor gauges, and incident logs for <strong>{lab.name}</strong> ({lab.location} · Supervisor: {lab.supervisor}). Zero mock readings or artificial bias offsets are applied.
+        ) : (
+          <div className="rounded-sm border border-amber-500/40 bg-amber-500/10 p-4 text-xs font-medium text-foreground shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-amber-500 text-white shrink-0">
+                  <WifiOff className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wide">
+                      ESP32 FIELD DEVICE DISCONNECTED / OFFLINE
+                    </h3>
+                    <span className="font-mono text-[10px] bg-amber-500/30 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                      NO LIVE TELEMETRY
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono">
+                    <span>Target Device: <strong className="text-foreground">{activeDeviceId}</strong></span>
+                    <span>·</span>
+                    <span>Lab: <strong className="text-foreground">{lab.name} ({lab.code})</strong></span>
+                    <span>·</span>
+                    <span>Status: <span className="text-amber-600 dark:text-amber-400 font-semibold">{secondsAgo !== null ? `Last seen ${secondsAgo}s ago` : "Waiting for ESP32 HTTP POST..."}</span></span>
+                  </div>
+                </div>
+              </div>
+              <Link
+                to="/integration"
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-primary hover:underline bg-card border border-border px-3 py-1.5 rounded-sm shrink-0 shadow-xs"
+              >
+                Flash / Connect ESP32 →
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Quick lab switcher */}
         <div className="flex flex-wrap items-center gap-2">

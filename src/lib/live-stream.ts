@@ -23,13 +23,12 @@ export type LiveEvent =
 
 type Listener = (e: LiveEvent) => void;
 
-// Default empty sensor slots before hardware transmits telemetry
+// Sensor templates matching ESP32 firmware exact keys & ranges
 const DEFAULT_SENSOR_TEMPLATES: SensorReading[] = [
-  { key: "mq2", label: "MQ2 · LPG / Smoke", unit: "ppm", value: 0, min: 0, max: 2000, warn: 400, critical: 800, updatedAt: new Date().toISOString() },
-  { key: "mq135", label: "MQ135 · Air Quality", unit: "ppm", value: 0, min: 0, max: 1000, warn: 300, critical: 600, updatedAt: new Date().toISOString() },
-  { key: "temp", label: "Temperature", unit: "°C", value: 0, min: -10, max: 80, warn: 35, critical: 45, updatedAt: new Date().toISOString() },
-  { key: "humidity", label: "Humidity", unit: "%", value: 0, min: 0, max: 100, warn: 75, critical: 85, updatedAt: new Date().toISOString() },
-  { key: "smoke", label: "Smoke Density", unit: "%", value: 0, min: 0, max: 100, warn: 20, critical: 40, updatedAt: new Date().toISOString() },
+  { key: "mq2", label: "MQ-2 Gas / Smoke", unit: "raw", value: 0, min: 0, max: 4095, warn: 1200, critical: 2200, updatedAt: "" },
+  { key: "mq135", label: "MQ-135 Air Quality", unit: "raw", value: 0, min: 0, max: 4095, warn: 1200, critical: 2200, updatedAt: "" },
+  { key: "temperature", label: "DHT22 Temperature", unit: "°C", value: 0, min: 0, max: 60, warn: 40, critical: 50, updatedAt: "" },
+  { key: "humidity", label: "DHT22 Humidity", unit: "%", value: 0, min: 0, max: 100, warn: 70, critical: 85, updatedAt: "" },
 ];
 
 class RealtimeTelemetryStream {
@@ -48,31 +47,41 @@ class RealtimeTelemetryStream {
       if (!error && data && data.length > 0) {
         const latestByKey = new Map<string, Record<string, unknown>>();
         for (const row of data) {
-          if (!latestByKey.has(row.sensor_key)) {
-            latestByKey.set(row.sensor_key, row);
+          const k = String(row.sensor_key).toLowerCase();
+          if (!latestByKey.has(k)) {
+            latestByKey.set(k, row);
           }
         }
 
-        this.readings = DEFAULT_SENSOR_TEMPLATES.map((tmpl) => {
-          const row = latestByKey.get(tmpl.key);
-          if (row) {
-            return {
-              key: tmpl.key,
-              label: (row.label as string) || tmpl.label,
-              unit: (row.unit as string) || tmpl.unit,
-              value: Number(row.value ?? tmpl.value),
-              min: Number(row.min ?? tmpl.min),
-              max: Number(row.max ?? tmpl.max),
-              warn: Number(row.warn ?? tmpl.warn),
-              critical: Number(row.critical ?? tmpl.critical),
-              updatedAt: (row.updated_at as string) || new Date().toISOString(),
-              labCode: (row.lab_code as string) || undefined,
-              deviceId: (row.device_id as string) || undefined,
-            };
-          }
-          return tmpl;
-        });
+        const keysPresent = new Set([...latestByKey.keys()]);
+        const customRows: SensorReading[] = [];
 
+        // Build list of readings from Supabase
+        for (const [k, row] of latestByKey.entries()) {
+          const tmpl = DEFAULT_SENSOR_TEMPLATES.find((t) => t.key === k);
+          customRows.push({
+            key: k,
+            label: (row.label as string) || tmpl?.label || k.toUpperCase(),
+            unit: (row.unit as string) || tmpl?.unit || "",
+            value: Number(row.value ?? 0),
+            min: Number(row.min ?? tmpl?.min ?? 0),
+            max: Number(row.max ?? tmpl?.max ?? 4095),
+            warn: Number(row.warn ?? tmpl?.warn ?? 1200),
+            critical: Number(row.critical ?? tmpl?.critical ?? 2200),
+            updatedAt: (row.updated_at as string) || new Date().toISOString(),
+            labCode: (row.lab_code as string) || undefined,
+            deviceId: (row.device_id as string) || undefined,
+          });
+        }
+
+        // Add default templates for missing keys
+        for (const tmpl of DEFAULT_SENSOR_TEMPLATES) {
+          if (!keysPresent.has(tmpl.key)) {
+            customRows.push(tmpl);
+          }
+        }
+
+        this.readings = customRows;
         this.emit({ type: "sensor", readings: this.readings, at: new Date().toISOString() });
       }
     } catch (err) {
@@ -94,20 +103,29 @@ class RealtimeTelemetryStream {
           (payload) => {
             const newRow = payload.new as Record<string, unknown>;
             if (newRow && typeof newRow.sensor_key === "string") {
-              const updated = this.readings.map((r) => {
-                if (r.key === newRow.sensor_key) {
-                  return {
-                    ...r,
-                    value: Number(newRow.value),
-                    updatedAt: (newRow.updated_at as string) || new Date().toISOString(),
-                    labCode: (newRow.lab_code as string) || r.labCode,
-                    deviceId: (newRow.device_id as string) || r.deviceId,
-                  };
-                }
-                return r;
-              });
-              this.readings = updated;
-              this.emit({ type: "sensor", readings: this.readings, at: new Date().toISOString() });
+              const key = newRow.sensor_key.toLowerCase();
+              const existingIdx = this.readings.findIndex((r) => r.key === key);
+              const updatedItem: SensorReading = {
+                key,
+                label: (newRow.label as string) || key,
+                unit: (newRow.unit as string) || "",
+                value: Number(newRow.value),
+                min: Number(newRow.min ?? 0),
+                max: Number(newRow.max ?? 4095),
+                warn: Number(newRow.warn ?? 1200),
+                critical: Number(newRow.critical ?? 2200),
+                updatedAt: (newRow.updated_at as string) || new Date().toISOString(),
+                labCode: (newRow.lab_code as string) || undefined,
+                deviceId: (newRow.device_id as string) || undefined,
+              };
+
+              if (existingIdx >= 0) {
+                this.readings[existingIdx] = updatedItem;
+              } else {
+                this.readings.push(updatedItem);
+              }
+
+              this.emit({ type: "sensor", readings: [...this.readings], at: new Date().toISOString() });
             }
           }
         )
@@ -122,11 +140,11 @@ class RealtimeTelemetryStream {
                 id: (inc.id as string) || "INC-REALTIME",
                 sensor: (inc.sensor as string) || "MQ2",
                 sensorKey: ((inc.sensor as string) || "mq2").toLowerCase(),
-                lab: (inc.lab as string) || "Chemistry Lab",
+                lab: (inc.lab as string) || "Physics Lab",
                 severity: (inc.severity as Severity) || "high",
                 message: (inc.remarks as string) || "Realtime incident detected",
                 value: Number(inc.value ?? 0),
-                unit: (inc.unit as string) || "ppm",
+                unit: (inc.unit as string) || "raw",
                 at: (inc.timestamp as string) || new Date().toISOString(),
               });
             }
@@ -185,6 +203,12 @@ export function useLiveStream() {
 export function useLiveSensors(labCode?: string) {
   const [readings, setReadings] = useState<SensorReading[]>(DEFAULT_SENSOR_TEMPLATES);
   const [status, setStatus] = useState<LiveStatus>("connecting");
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setStatus(liveStream.status);
@@ -197,17 +221,37 @@ export function useLiveSensors(labCode?: string) {
     return unsub;
   }, []);
 
-  const filteredReadings = labCode
-    ? readings.map((r) => {
-        // If a reading specifically belongs to this lab_code or is default template, return exact value
-        if (r.labCode && r.labCode.toLowerCase() !== labCode.toLowerCase()) {
-          return r;
-        }
-        return r;
-      })
+  // Filter readings matching target labCode (if specified)
+  const filtered = labCode
+    ? readings.filter((r) => !r.labCode || r.labCode.toLowerCase() === labCode.toLowerCase())
     : readings;
 
-  return { readings: filteredReadings, status };
+  // Calculate ESP32 connection status
+  let latestTs = 0;
+  let activeDeviceId: string | null = null;
+
+  for (const r of filtered) {
+    if (r.updatedAt) {
+      const ts = new Date(r.updatedAt).getTime();
+      if (ts > latestTs) {
+        latestTs = ts;
+        if (r.deviceId) activeDeviceId = r.deviceId;
+      }
+    }
+  }
+
+  const secondsAgo = latestTs > 0 ? Math.max(0, Math.floor((now - latestTs) / 1000)) : null;
+  // Consider ESP32 connected if telemetry arrived within last 30 seconds
+  const isEsp32Connected = secondsAgo !== null && secondsAgo <= 30;
+
+  return {
+    readings: filtered,
+    status,
+    isEsp32Connected,
+    secondsAgo,
+    activeDeviceId: activeDeviceId || (labCode ? `ESP32-${labCode.toUpperCase()}` : "ESP32-DEV-01"),
+    lastTelemetryIso: latestTs > 0 ? new Date(latestTs).toISOString() : null,
+  };
 }
 
 export function useHazardEvents(limit = 10) {
