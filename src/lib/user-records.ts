@@ -258,6 +258,33 @@ export function deleteLab(id: string) {
   });
 }
 
+export function deleteChemical(id: string) {
+  state.chemicals = state.chemicals.filter((c) => c.id !== id);
+  emit();
+
+  supabase.from("chemicals").delete().eq("id", id).then(({ error }) => {
+    if (error) console.warn("Supabase delete chemical error:", error);
+  });
+}
+
+export function deleteEquipment(id: string) {
+  state.equipment = state.equipment.filter((e) => e.id !== id);
+  emit();
+
+  supabase.from("equipment").delete().eq("id", id).then(({ error }) => {
+    if (error) console.warn("Supabase delete equipment error:", error);
+  });
+}
+
+export function deleteCalibration(id: string) {
+  state.calibrations = state.calibrations.filter((c) => c.id !== id);
+  emit();
+
+  supabase.from("calibrations").delete().eq("id", id).then(({ error }) => {
+    if (error) console.warn("Supabase delete calibration error:", error);
+  });
+}
+
 export function isMacTaken(mac: string, existingMacs: string[]) {
   const norm = mac.trim().toUpperCase();
   if (existingMacs.some((m) => m.toUpperCase() === norm)) return true;

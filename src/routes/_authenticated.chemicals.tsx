@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FlaskConical, AlertTriangle } from "lucide-react";
+import { FlaskConical, AlertTriangle, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { CHEMICALS, type Chemical } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { ExportMenu } from "@/components/ExportMenu";
 import { AddChemicalDialog } from "@/components/AddChemicalDialog";
 import { useAuth } from "@/lib/auth";
-import { useUserRecords } from "@/lib/user-records";
+import { useUserRecords, deleteChemical } from "@/lib/user-records";
 import type { ExportColumn } from "@/lib/export";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/chemicals")({
   head: () => ({
@@ -52,6 +53,8 @@ function Chemicals() {
   const { can } = useAuth();
   const added = useUserRecords("chemicals");
   const rows = [...added, ...CHEMICALS];
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
   return (
     <div>
       <PageHeader
@@ -69,8 +72,31 @@ function Chemicals() {
         }
       />
 
-
-
+      {/* Delete confirm dialog */}
+      {confirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="rounded-sm border border-border bg-card p-6 shadow-lg max-w-sm w-full mx-4">
+            <h3 className="text-sm font-semibold text-foreground">Delete Chemical</h3>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Are you sure you want to delete <strong>{confirmId}</strong>? This will remove it from the database permanently.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmId(null)}
+                className="rounded-sm border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { deleteChemical(confirmId); setConfirmId(null); }}
+                className="rounded-sm bg-critical px-3 py-1.5 text-xs font-medium text-white hover:bg-critical/90"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-6">
         <div className="overflow-hidden rounded-sm border border-border bg-card">
@@ -85,12 +111,14 @@ function Chemicals() {
                 <th className="px-4 py-2 font-medium">Hazard</th>
                 <th className="px-4 py-2 font-medium">Expiry</th>
                 <th className="px-4 py-2 font-medium">MSDS</th>
+                <th className="px-4 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => {
                 const days = daysUntil(c.expiry);
                 const expiryTone = days < 30 ? "critical" : days < 90 ? "warning" : "muted";
+                const hasMsds = c.msds && c.msds !== "#" && c.msds.startsWith("http");
                 return (
                   <tr key={c.id} className="border-t border-border hover:bg-muted/40">
                     <td className="px-4 py-2.5 text-mono text-xs">{c.id}</td>
@@ -130,7 +158,21 @@ function Chemicals() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <a href={c.msds} className="text-xs text-primary hover:underline">View →</a>
+                      {hasMsds ? (
+                        <a href={c.msds} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View →</a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        onClick={() => setConfirmId(c.id)}
+                        className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] font-medium text-critical hover:bg-critical/10 transition-colors"
+                        title="Delete chemical"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 );
