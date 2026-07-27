@@ -19,6 +19,7 @@ import { useLiveSensors, useHazardEvents, useTelemetryHistory } from "@/lib/live
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useUserRecords } from "@/lib/user-records";
+import { SensorGaugeCard } from "@/components/SensorGaugeCard";
 
 export const Route = createFileRoute("/_authenticated/monitoring/$labId")({
   head: ({ params }) => {
@@ -244,65 +245,10 @@ function LabMonitoring() {
         </div>
 
         {/* Gauges scoped to this lab */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {readings.map((s) => {
-            const sev = sensorSeverity(s);
-            const tone = sev === "critical" ? "critical" : sev === "medium" ? "warning" : "success";
-            const pct = Math.min(100, Math.max(0, ((s.value - s.min) / (s.max - s.min)) * 100));
-            const display =
-              Math.abs(s.value) >= 100 ? Math.round(s.value).toString() : s.value.toFixed(1);
-            return (
-              <div key={s.key} className="rounded-sm border border-border bg-card p-4">
-                <div className="flex items-start justify-between">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
-                  <StatusDot tone={tone} />
-                </div>
-                <div className="relative mt-3 h-32">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadialBarChart
-                      innerRadius="72%"
-                      outerRadius="100%"
-                      data={[{ v: pct }]}
-                      startAngle={225}
-                      endAngle={-45}
-                    >
-                      <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                      <RadialBar
-                        dataKey="v"
-                        cornerRadius={2}
-                        fill={
-                          tone === "critical"
-                            ? "var(--critical)"
-                            : tone === "warning"
-                            ? "var(--warning)"
-                            : "var(--success)"
-                        }
-                        background={{ fill: "var(--muted)" }}
-                      />
-                    </RadialBarChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-2">
-                    <div className="text-mono text-xl font-semibold leading-none tabular-nums">{display}</div>
-                    <div className="mt-1 text-[9px] uppercase tracking-widest text-muted-foreground">{s.unit}</div>
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-mono text-[10px] text-muted-foreground">
-                  <div>
-                    <div>Min</div>
-                    <div className="text-foreground">{s.min}</div>
-                  </div>
-                  <div>
-                    <div>Warn</div>
-                    <div className="text-warning">{s.warn}</div>
-                  </div>
-                  <div>
-                    <div>Crit</div>
-                    <div className="text-critical">{s.critical}</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {readings.map((s) => (
+            <SensorGaugeCard key={s.key} sensor={s} />
+          ))}
         </div>
 
         {/* Realtime Telemetry Timeseries + hazard feed */}

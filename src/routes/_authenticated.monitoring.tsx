@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 import { RefreshCw, Wifi, WifiOff, AlertTriangle, ExternalLink, Building2 } from "lucide-react";
 import { PageHeader, StatusDot } from "@/components/PageHeader";
-import { DEVICES, LABS, sensorSeverity } from "@/lib/mock-data";
+import { sensorSeverity } from "@/lib/mock-data";
 import { useLiveSensors, useHazardEvents, useTelemetryHistory } from "@/lib/live-stream";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useUserRecords } from "@/lib/user-records";
 import { AddLabDialog } from "@/components/AddLabDialog";
+import { SensorGaugeCard } from "@/components/SensorGaugeCard";
 
 export const Route = createFileRoute("/_authenticated/monitoring")({
   head: () => ({
@@ -38,7 +39,6 @@ function Monitoring() {
   const [pulse, setPulse] = useState(0);
   useEffect(() => { setPulse((p) => p + 1); }, [sensors]);
 
-  const statusTone = status === "open" ? "success" : status === "connecting" ? "warning" : "critical";
   const userLabs = useUserRecords("labs");
   const userDevices = useUserRecords("devices");
   const hiddenLabIds = useUserRecords("hiddenLabIds");
@@ -191,6 +191,13 @@ function Monitoring() {
               );
             })}
           </div>
+        </div>
+
+        {/* Live Gauges */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sensors.map((s) => (
+            <SensorGaugeCard key={s.key} sensor={s} />
+          ))}
         </div>
 
         {/* Hazard event feed */}
