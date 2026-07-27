@@ -23,6 +23,11 @@ const ESP32_SUPABASE_CODE = `#include <WiFi.h>
 #include "DHT.h"
 
 // ==========================================
+// TYPES & ENUMS (placed top for Arduino IDE)
+// ==========================================
+enum SafetyLevel { SAFE, WARNING, DANGER };
+
+// ==========================================
 // WIFI & SUPABASE CONFIGURATION
 // ==========================================
 const char* WIFI_SSID       = "YOUR_WIFI_SSID";
@@ -102,8 +107,6 @@ void postReading(const char* key, const char* label,
 // ==========================================
 // LOCAL ACTUATOR CONTROL
 // ==========================================
-enum SafetyLevel { SAFE, WARNING, DANGER };
-
 void setIndicators(SafetyLevel level) {
   switch (level) {
     case SAFE:
