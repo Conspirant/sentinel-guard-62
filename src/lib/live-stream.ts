@@ -293,3 +293,81 @@ export function useHazardEvents(limit = 10) {
 
   return hazards;
 }
+
+export type TelemetryHistoryPoint = {
+  time: string;
+  mq2: number;
+  mq135: number;
+  temperature: number;
+  humidity: number;
+};
+
+/** Realtime telemetry history hook -- streams pure ESP32 data points as they arrive */
+export function useTelemetryHistory(labCode?: string, maxPoints = 25) {
+  const [history, setHistory] = useState<TelemetryHistoryPoint[]>([]);
+
+  useEffect(() => {
+    // Fetch historical telemetry rows from Supabase
+    let query = supabase.from("sensor_readings").select("*").order("updated_at", { ascending: false }).limit(100);
+    if (labCode) {
+      query = query.eq("lab_code", labCode);
+    }
+
+    query.then(({ data }) => {
+      if (data && data.length > 0) {
+        // Group by timestamp or time string
+        const byTime = new Map<string, TelemetryHistoryPoint>();
+        for (const row of data.reverse()) {
+          const timeStr = row.updated_at
+            ? new Date(row.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            : new Date().toLocaleTimeString();
+
+          const pt = byTime.get(timeStr) || { time: timeStr, mq2: 0, mq135: 0, temperature: 0, humidity: 0 };
+          const key = String(row.sensor_key).toLowerCase();
+          const val = Number(row.value ?? 0);
+          if (key === "mq2") pt.mq2 = val;
+          else if (key === "mq135") pt.mq135 = val;
+          else if (key === "temperature" || key === "temp") pt.temperature = val;
+          else if (key === "humidity") pt.humidity = val;
+          byTime.set(timeStr, pt);
+        }
+
+        const initialPoints = Array.from(byTime.values()).slice(-maxPoints);
+        if (initialPoints.length > 0) {
+          setHistory(initialPoints);
+        }
+      }
+    });
+
+    // Subscribe to live incoming sensor readings
+    const unsub = liveStream.subscribe((evt) => {
+      if (evt.type === "sensor") {
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const pt: TelemetryHistoryPoint = { time: timeStr, mq2: 0, mq135: 0, temperature: 0, humidity: 0 };
+
+        for (const r of evt.readings) {
+          if (labCode && r.labCode && r.labCode.toLowerCase() !== labCode.toLowerCase()) continue;
+          const k = r.key.toLowerCase();
+          if (k === "mq2") pt.mq2 = r.value;
+          else if (k === "mq135") pt.mq135 = r.value;
+          else if (k === "temperature" || k === "temp") pt.temperature = r.value;
+          else if (k === "humidity") pt.humidity = r.value;
+        }
+
+        setHistory((prev) => {
+          // If last entry has same time string, update it; otherwise append
+          if (prev.length > 0 && prev[prev.length - 1].time === timeStr) {
+            const updated = [...prev];
+            updated[updated.length - 1] = pt;
+            return updated;
+          }
+          return [...prev, pt].slice(-maxPoints);
+        });
+      }
+    });
+
+    return unsub;
+  }, [labCode, maxPoints]);
+
+  return history;
+}

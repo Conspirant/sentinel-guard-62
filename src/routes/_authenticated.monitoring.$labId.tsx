@@ -14,8 +14,8 @@ import {
 } from "recharts";
 import { ArrowLeft, ChevronRight, Wifi, WifiOff, AlertTriangle, MapPin, User2, Building2 } from "lucide-react";
 import { PageHeader, StatusDot } from "@/components/PageHeader";
-import { DEVICES, LABS, TREND_24H, sensorSeverity, type SensorReading, type Lab } from "@/lib/mock-data";
-import { useLiveSensors, useHazardEvents } from "@/lib/live-stream";
+import { DEVICES, LABS, sensorSeverity, type SensorReading, type Lab } from "@/lib/mock-data";
+import { useLiveSensors, useHazardEvents, useTelemetryHistory } from "@/lib/live-stream";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useUserRecords } from "@/lib/user-records";
@@ -50,6 +50,7 @@ function LabMonitoring() {
   const lab = allLabs.find((l) => l.id === labId);
   const { readings, status, isEsp32Connected, secondsAgo, activeDeviceId } = useLiveSensors(lab?.code);
   const hazards = useHazardEvents(20);
+  const history = useTelemetryHistory(lab?.code);
 
   const labDevices = useMemo(() => {
     if (!lab) return [];
@@ -304,46 +305,63 @@ function LabMonitoring() {
           })}
         </div>
 
-        {/* Trends + hazard feed */}
+        {/* Realtime Telemetry Timeseries + hazard feed */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-sm border border-border bg-card lg:col-span-2">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <div className="text-sm font-semibold">Rolling 24h · {lab.code}</div>
-                <div className="text-[11px] text-muted-foreground">Sample rate: 60s · aggregated</div>
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Realtime Telemetry Stream · {lab.code}
+                </div>
+                <div className="text-[11px] text-muted-foreground">Live ESP32 telemetry feed · updating in realtime</div>
               </div>
+              <Badge variant="outline" className="rounded-sm text-mono text-[10px] uppercase">
+                {history.length} samples
+              </Badge>
             </div>
             <div className="h-72 p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={TREND_24H} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="2 4" vertical={false} />
-                  <XAxis
-                    dataKey="hour"
-                    fontSize={10}
-                    tick={{ fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    fontSize={10}
-                    tick={{ fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      fontSize: 11,
-                      borderRadius: 4,
-                    }}
-                  />
-                  <Line type="monotone" dataKey="mq2" stroke="var(--chart-1)" dot={false} strokeWidth={1.6} />
-                  <Line type="monotone" dataKey="mq135" stroke="var(--chart-2)" dot={false} strokeWidth={1.6} />
-                  <Line type="monotone" dataKey="temperature" stroke="var(--chart-3)" dot={false} strokeWidth={1.6} />
-                  <Line type="monotone" dataKey="humidity" stroke="var(--chart-5)" dot={false} strokeWidth={1.6} />
-                </LineChart>
-              </ResponsiveContainer>
+              {history.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center p-6">
+                  <div className="text-xs text-muted-foreground font-mono">
+                    Waiting for ESP32 live telemetry samples...
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Connect ESP32 or run the test command to start plotting live points.
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="2 4" vertical={false} />
+                    <XAxis
+                      dataKey="time"
+                      fontSize={10}
+                      tick={{ fill: "var(--muted-foreground)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      fontSize={10}
+                      tick={{ fill: "var(--muted-foreground)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        fontSize: 11,
+                        borderRadius: 4,
+                      }}
+                    />
+                    <Line type="monotone" dataKey="mq2" name="MQ-2 Gas" stroke="var(--chart-1)" dot={false} strokeWidth={1.6} />
+                    <Line type="monotone" dataKey="mq135" name="MQ-135 Air" stroke="var(--chart-2)" dot={false} strokeWidth={1.6} />
+                    <Line type="monotone" dataKey="temperature" name="Temp (°C)" stroke="var(--chart-3)" dot={false} strokeWidth={1.6} />
+                    <Line type="monotone" dataKey="humidity" name="Humidity (%)" stroke="var(--chart-5)" dot={false} strokeWidth={1.6} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
